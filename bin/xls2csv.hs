@@ -81,5 +81,4 @@ main = do
   args <- getArgs
   (opts, err) <- compilerOpts args
   opts <- return $ hasFileArg opts err
-  print(opts)
   xlsToCSV opts
