@@ -71,7 +71,6 @@ executable xls2csv
                       , conduit         >= 1.1   && < 1.4
                       , resourcet       >= 0.3   && < 1.3
                       , transformers    >= 0.1   && < 0.6
-                      , getopt-generics >= 0.11  && < 0.14
                       , xls
 
 test-suite test
