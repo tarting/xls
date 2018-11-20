@@ -19,7 +19,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 #endif
 
-module Data.Xls (decodeXls, XlsException(..)) where
+module Data.Xls (decodeXls, decodeXlsSheetNo, XlsException(..)) where
 
 import           Control.Exception            (Exception, throwIO)
 import           Control.Monad.IO.Class
@@ -71,6 +71,7 @@ CCALL(xls_cell_hidden,          XLSCell -> IO Int8 -- Int8)
 
 data XlsException =
       XlsFileNotFound String
+    | XlsSheetNotFound String
     | XlsParseError String
     deriving (Show, Typeable)
 
@@ -103,6 +104,37 @@ decodeXls file =
         decodeWorkSheets pWB = do
             count <- liftIO $ c_xls_wb_sheetcount pWB
             mapM_ (decodeOneWorkSheet file pWB) [0 .. count - 1]
+
+mkCInt :: Int -> CInt
+mkCInt i = fromIntegral i
+
+-- | Parse one sheet in a Microsoft excel xls workbook file into a Conduit 
+-- yielding rows in a worksheet. Each row represented by a list of Strings, 
+-- each String representing an individual cell.
+--
+-- Throws 'XlsException'
+--
+decodeXlsSheetNo :: MonadResource m => FilePath -> Int -> ConduitM i [String] m ()
+decodeXlsSheetNo file sheetIndex =
+    bracketP alloc cleanup decodeWorkSheet
+    where
+        alloc = do
+            file' <- newCString file
+            pWB <- newCString "UTF-8" >>= c_xls_open file'
+            if pWB == nullPtr then
+                throwIO $ XlsFileNotFound
+                        $ "XLS file " ++ file ++ " not found."
+            else
+                return pWB
+
+        cleanup = c_xls_close_WB
+
+        decodeWorkSheet pWB = let idx = mkCInt sheetIndex in do
+            count <- liftIO $ c_xls_wb_sheetcount pWB
+            case count > idx of
+                True -> mapM_ (decodeOneWorkSheet file pWB) [idx]
+                False -> throwM $ XlsSheetNotFound
+                               $ "Sheet " ++ (show idx) ++ " in XLS file " ++ file ++ " out of bounds."
 
 decodeOneWorkSheet
     :: MonadResource m
